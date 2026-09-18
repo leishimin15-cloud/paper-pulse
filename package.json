@@ -1,0 +1,29 @@
+{
+	"name": "paper-pulse",
+	"version": "0.1.0",
+	"description": "面向计算机领域的论文研究 Agent，支持 CCF 来源过滤、研究记忆、Trace 与离线 Eval。",
+	"private": true,
+	"type": "module",
+	"engines": {
+		"node": ">=22.19.0"
+	},
+	"scripts": {
+		"check": "tsc --noEmit",
+		"dev": "node --env-file-if-exists=.env --import tsx server.ts",
+		"eval": "node --import tsx run-eval.ts",
+		"mcp": "node --import tsx mcp-server.ts",
+		"test": "node --import tsx --test *.test.ts"
+	},
+	"dependencies": {
+		"@earendil-works/pi-coding-agent": "0.84.0",
+		"@modelcontextprotocol/client": "2.0.0",
+		"@modelcontextprotocol/server": "2.0.0",
+		"typebox": "1.3.7",
+		"zod": "4.6.5"
+	},
+	"devDependencies": {
+		"@types/node": "22.19.19",
+		"tsx": "4.22.1",
+		"typescript": "5.9.3"
+	}
+}

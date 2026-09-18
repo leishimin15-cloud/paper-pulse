@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>PaperPulse · 计算机文献研究 Agent</title>
+	<style>
+		:root { --ink:#172033; --muted:#697286; --line:#dfe3eb; --paper:#f4f5f8; --panel:#fff; --blue:#2446d8; --soft:#edf0ff; --green:#18845e; }
+		* { box-sizing:border-box; }
+		body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,"PingFang SC","Microsoft YaHei",system-ui,sans-serif; }
+		button,textarea { font:inherit; } button { cursor:pointer; }
+		.topbar { height:66px; padding:0 max(22px,5vw); display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); background:#f4f5f8e8; backdrop-filter:blur(16px); position:sticky; top:0; z-index:10; }
+		.brand { font-size:20px; font-weight:850; letter-spacing:-.8px; } .brand span { color:var(--blue); }
+		.connection { display:flex; align-items:center; gap:9px; color:var(--muted); font:11px ui-monospace,monospace; }
+		.dot { width:8px; height:8px; border-radius:50%; background:#9ba3b3; } .dot.on { background:#2ba16d; box-shadow:0 0 0 4px #2ba16d20; }
+		main { max-width:1240px; margin:0 auto; padding:70px max(22px,5vw) 90px; }
+		.hero { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:50px; align-items:end; }
+		.eyebrow { color:var(--blue); font:750 10px ui-monospace,monospace; letter-spacing:1.8px; text-transform:uppercase; }
+		h1 { margin:13px 0 18px; font-size:clamp(42px,6vw,76px); line-height:.98; letter-spacing:-5px; }
+		.policy-card { padding:20px; border:1px solid var(--line); border-radius:18px; background:#fff; color:var(--muted); font-size:11px; line-height:1.7; }
+		.policy-card strong { display:block; margin-bottom:7px; color:var(--ink); font-size:14px; }
+		.search-card { margin-top:38px; padding:24px; border:1px solid #d7dce7; border-radius:22px; background:white; box-shadow:0 22px 60px #26345a12; }
+		.prompt-label { display:block; margin-bottom:12px; font-size:13px; font-weight:800; }
+		.composer { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; padding:8px; border:1px solid #cfd5e3; border-radius:16px; background:#fafbfc; }
+		.composer:focus-within { border-color:var(--blue); box-shadow:0 0 0 4px #2446d812; background:white; }
+		.query { width:100%; min-height:78px; border:0; background:transparent; color:var(--ink); padding:11px 12px; outline:none; resize:vertical; font-size:15px; line-height:1.65; }
+		.primary { min-width:124px; border:0; border-radius:12px; background:var(--blue); color:white; padding:0 20px; font-weight:800; }
+		.primary:disabled { opacity:.55; cursor:not-allowed; }
+		.suggestions { display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-top:13px; }
+		.suggestion { border:0; border-radius:999px; background:var(--soft); color:#48599d; padding:6px 10px; font-size:10px; }
+		.search-plan { display:flex; align-items:flex-start; gap:10px; margin-top:13px; padding:11px 13px; border-radius:12px; background:#f7f8ff; }
+		.search-plan[hidden] { display:none; }
+		.plan-label { flex:0 0 auto; padding-top:5px; color:var(--muted); font-size:9px; font-weight:800; letter-spacing:.8px; text-transform:uppercase; }
+		.plan-terms { display:flex; gap:6px; flex-wrap:wrap; }
+		.plan-term { border-radius:999px; background:#dfe4ff; color:#33448e; padding:5px 8px; font-size:9px; }
+		.plan-term.expansion { background:#eef0f5; color:#667085; }
+		.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+		.metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:22px 0; }
+		.metric { border:1px solid var(--line); border-radius:14px; background:#ffffff95; padding:14px 16px; }
+		.metric strong { display:block; font-size:22px; } .metric span { color:var(--muted); font-size:10px; }
+			.run-details { margin:-10px 0 22px; border:1px solid var(--line); border-radius:14px; background:#fff; }
+		.run-details[hidden] { display:none; }
+		.run-details summary { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:13px 16px; cursor:pointer; font-size:11px; font-weight:750; list-style:none; }
+		.run-details summary::-webkit-details-marker { display:none; }
+		.trace-id { color:var(--muted); font:9px ui-monospace,monospace; font-weight:500; overflow:hidden; text-overflow:ellipsis; }
+		.trace-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; border-top:1px solid var(--line); background:var(--line); }
+		.trace-stat { padding:13px 16px; background:#fafbfc; }
+		.trace-stat strong { display:block; font-size:14px; } .trace-stat span { color:var(--muted); font-size:9px; }
+		.spans { padding:8px 16px 13px; border-top:1px solid var(--line); }
+		.span-row { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:12px; padding:6px 0; color:var(--muted); font:9px ui-monospace,monospace; }
+			.span-row strong { color:var(--ink); font-weight:650; }
+			.memory-panel { margin:-10px 0 22px; border:1px solid var(--line); border-radius:14px; background:#fff; }
+			.memory-panel summary { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:13px 16px; cursor:pointer; list-style:none; }
+			.memory-panel summary::-webkit-details-marker { display:none; }
+			.memory-title { font-size:11px; font-weight:750; } .memory-count { color:var(--muted); font:9px ui-monospace,monospace; }
+			.memory-body { padding:0 16px 14px; border-top:1px solid var(--line); }
+			.memory-list { display:grid; gap:7px; padding:12px 0; }
+			.memory-item { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:9px 11px; border-radius:9px; background:#f7f8fb; color:#4b5568; font-size:10px; line-height:1.55; }
+			.memory-item small { flex:0 0 auto; color:#788197; font:8px ui-monospace,monospace; }
+			.memory-empty { padding:12px 0; color:var(--muted); font-size:10px; }
+			.memory-clear { border:1px solid var(--line); border-radius:8px; background:white; color:var(--muted); padding:6px 9px; font-size:9px; }
+		.workspace { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(340px,.75fr); gap:16px; align-items:start; }
+		.panel { border:1px solid var(--line); border-radius:20px; background:var(--panel); overflow:hidden; }
+		.panel-head { min-height:65px; padding:16px 19px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); }
+		.panel-head h2 { margin:0; font-size:15px; } .panel-note { margin-top:4px; color:var(--muted); font-size:10px; }
+		.rank { border-radius:999px; padding:5px 8px; background:var(--soft); color:var(--blue); font:700 9px ui-monospace,monospace; }
+		.results { min-height:510px; max-height:760px; overflow:auto; }
+		.paper { padding:20px; border-bottom:1px solid #e8eaf0; } .paper:last-child { border-bottom:0; }
+		.paper-top { display:flex; align-items:flex-start; gap:14px; } .paper-main { flex:1; min-width:0; }
+		.paper-index { display:grid; place-items:center; width:29px; height:29px; border-radius:8px; background:var(--soft); color:var(--blue); font:700 11px ui-monospace,monospace; }
+		.paper-title { margin:0; font-size:14px; line-height:1.48; } .paper-meta { display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-top:7px; color:var(--muted); font-size:10px; }
+		.venue-name { color:var(--blue); font-weight:700; } .abstract { margin:13px 0 0; color:#4b5568; font-size:12px; line-height:1.72; }
+		.abstract-label { color:var(--ink); font-weight:750; }
+		.evidence { margin-top:9px; color:var(--muted); font-size:10px; }
+		.evidence summary { cursor:pointer; width:max-content; color:#68728a; }
+		.evidence p { margin:8px 0 0; padding:10px 12px; border-left:2px solid #d9deeb; background:#f8f9fb; color:#697286; line-height:1.65; }
+		.actions { display:flex; gap:7px; margin-top:13px; } .actions button,.actions a,.copy { border:1px solid var(--line); border-radius:8px; background:transparent; color:var(--muted); padding:6px 9px; text-decoration:none; font-size:10px; }
+		.actions a { color:var(--blue); border-color:#cbd2fa; }
+		.report-panel { position:sticky; top:82px; } .report { min-height:510px; max-height:760px; overflow:auto; padding:24px; color:#3d485e; font-size:12px; line-height:1.78; }
+		.report h2 { margin:26px 0 11px; padding-bottom:8px; border-bottom:1px solid #e5e8f0; color:var(--ink); font-size:17px; } .report h2:first-child { margin-top:0; }
+		.report h3 { margin:18px 0 7px; color:#172b85; font-size:13px; line-height:1.5; } .report p { margin:7px 0; }
+		.report a { color:var(--blue); text-decoration:none; } .report strong { color:var(--ink); }
+		.report-bullet { position:relative; margin:7px 0; padding-left:16px; } .report-bullet::before { content:""; position:absolute; left:1px; top:.72em; width:5px; height:5px; border-radius:50%; background:#7b8de8; }
+		.panel-actions { display:flex; gap:7px; } .panel-actions button { border:1px solid var(--line); border-radius:8px; background:white; color:var(--muted); padding:6px 9px; font-size:10px; }
+		.panel-actions button:disabled { opacity:.45; cursor:not-allowed; }
+		.empty { min-height:450px; display:grid; place-items:center; padding:35px; text-align:center; color:var(--muted); font-size:12px; }
+		.empty strong { display:block; margin-bottom:7px; color:var(--ink); font-size:16px; }
+		.spinner { display:inline-block; width:11px; height:11px; margin-right:7px; border:2px solid #2446d833; border-top-color:var(--blue); border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px; }
+		@keyframes spin { to { transform:rotate(360deg); } }
+		@media (max-width:900px) { .hero,.workspace { grid-template-columns:1fr; } .policy-card { display:none; } .report-panel { position:static; } .metrics { grid-template-columns:repeat(3,1fr); } }
+		@media (max-width:650px) { main { padding:42px 16px 70px; } h1 { letter-spacing:-2.4px; } .composer { grid-template-columns:1fr; } .primary { min-height:48px; } .metrics { grid-template-columns:1fr; } .trace-grid { grid-template-columns:repeat(2,1fr); } }
+		@media print { body { background:white; } .topbar,.hero,.search-card,.metrics,.run-details,.actions,.panel-actions { display:none !important; } main { max-width:none; padding:0; } .workspace { display:block; } .panel { margin:0 0 18px; border-color:#ccd1db; break-inside:auto; } .results,.report { min-height:0; max-height:none; overflow:visible; } .report-panel { position:static; } .paper { break-inside:avoid; } }
+	</style>
+</head>
+<body>
+	<header class="topbar"><div class="brand">Paper<span>Pulse</span></div><div class="connection"><i id="dot" class="dot"></i><span id="connection">正在连接 MCP</span></div></header>
+	<main>
+		<section class="hero">
+			<div><div class="eyebrow">PaperPulse · 计算机文献研究 Agent</div><h1>从一个问题，<br>读懂最新研究。</h1></div>
+			<div class="policy-card"><strong>CCF 来源筛选</strong><span id="policyText">正在载入 CCF 2026 目录</span><br>只展示目录收录的 A/B/C 类来源；未收录来源不会进入结果。</div>
+		</section>
+		<form id="research" class="search-card">
+			<label class="prompt-label" for="query">你想了解哪个计算机研究问题？</label>
+			<div class="composer"><textarea id="query" class="query" maxlength="500" rows="3" required>我想了解大语言模型 Agent 的长期记忆最近有哪些新方法，以及这些方法解决了什么问题？</textarea><button id="search" class="primary" type="submit">开始研究</button></div>
+			<div class="suggestions"><button class="suggestion" type="button" data-query="多模态大模型的幻觉检测有哪些最新进展？">多模态幻觉检测</button><button class="suggestion" type="button" data-query="AI Agent 的长期记忆与检索增强有哪些新方法？">Agent 长期记忆</button><button class="suggestion" type="button" data-query="软件供应链安全最近有哪些检测方法？">软件供应链安全</button></div>
+			<div id="searchPlan" class="search-plan" hidden><span class="plan-label">LLM 提取的检索词</span><div id="planTerms" class="plan-terms"></div></div>
+			<span id="runStatus" class="sr-only" role="status">正在检查真实检索配置</span>
+		</form>
+		<section class="metrics"><div class="metric"><strong id="resultCount">0 / 15</strong><span>已找到 / 目标论文</span></div><div class="metric"><strong id="domain">—</strong><span>自动识别子领域</span></div><div class="metric"><strong id="excludedCount">0</strong><span>来源未被 CCF 收录</span></div></section>
+			<details id="runDetails" class="run-details" hidden><summary><span>本次运行详情</span><span id="traceId" class="trace-id"></span></summary><div id="traceGrid" class="trace-grid"></div><div id="spans" class="spans"></div></details>
+			<details id="memoryPanel" class="memory-panel"><summary><span class="memory-title">研究记忆</span><span id="memoryCount" class="memory-count">0 条</span></summary><div class="memory-body"><div id="memoryList" class="memory-list"><div class="memory-empty">还没有研究记忆</div></div><button id="clearMemory" class="memory-clear" type="button">清空记忆</button></div></details>
+		<section class="workspace">
+			<section class="panel"><div class="panel-head"><div><h2>论文结果</h2><div id="resultNote" class="panel-note">等待研究问题</div></div></div><div id="results" class="results"><div class="empty"><div><strong>尚未开始检索</strong></div></div></div></section>
+			<section class="panel report-panel"><div class="panel-head"><div><h2>Agent 归纳</h2><div class="panel-note">方法、结论与跨论文趋势</div></div><div class="panel-actions"><button id="word" type="button" disabled>导出 Word</button><button id="pdf" type="button" disabled>导出 PDF</button><button id="copy" type="button">复制</button></div></div><div id="report" class="report"><div class="empty"><div><strong>等待 Agent 归纳</strong></div></div></div></section>
+		</section>
+	</main>
+	<script type="module">
+		const $ = (id) => document.getElementById(id);
+		const targetCount = 15;
+		let running = false;
+		let reportText = "";
+		let liveSearch = false;
+		let currentPapers = [];
+		let currentQuery = "";
+			async function request(path, options) { const response = await fetch(path, options); const data = await response.json(); if (!response.ok) throw new Error(data.error || `请求失败 (${response.status})`); return data; }
+			function empty(container, title, text) { container.replaceChildren(); const shell = document.createElement("div"); shell.className = "empty"; const content = document.createElement("div"); const strong = document.createElement("strong"); strong.textContent = title; content.append(strong, document.createTextNode(text)); shell.append(content); container.append(shell); }
+			function memoryTypeLabel(type) { return ({preference:"偏好",interest:"兴趣",constraint:"约束",note:"笔记","research-history":"历史"})[type] || type; }
+			async function refreshMemory() { const data = await request("/api/memory?limit=20"); $("memoryCount").textContent = `${data.stats.total} 条`; $("memoryList").replaceChildren(); if (!data.items.length) { const node = document.createElement("div"); node.className = "memory-empty"; node.textContent = "还没有研究记忆"; $("memoryList").append(node); return; } for (const item of data.items) { const row = document.createElement("div"); row.className = "memory-item"; const content = document.createElement("span"); content.textContent = item.content; const type = document.createElement("small"); type.textContent = memoryTypeLabel(item.memoryType); row.append(content,type); $("memoryList").append(row); } }
+		function appendInlineMarkdown(parent, value) { const pattern = /(\*\*[^*]+\*\*|\[[^\]]+\]\(https?:\/\/[^)\s]+\))/gu; let offset = 0; for (const match of value.matchAll(pattern)) { const index = match.index ?? 0; if (index > offset) parent.append(document.createTextNode(value.slice(offset,index))); const token = match[0]; if (token.startsWith("**")) { const strong = document.createElement("strong"); strong.textContent = token.slice(2,-2); parent.append(strong); } else { const parts = token.match(/^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/u); if (parts) { const link = document.createElement("a"); link.textContent = parts[1]; link.href = parts[2]; link.target = "_blank"; link.rel = "noreferrer"; parent.append(link); } } offset = index + token.length; } if (offset < value.length) parent.append(document.createTextNode(value.slice(offset))); }
+		function renderReport() { $("report").replaceChildren(); for (const raw of reportText.split("\n")) { const line = raw.trim(); if (!line || line === "---") continue; const heading = line.match(/^(#{2,3})\s+(.+)$/u); const numbered = line.match(/^\d+[.)]\s+(.+)$/u); const bullet = line.match(/^[-*]\s+(.+)$/u); const quote = line.match(/^>\s*(.+)$/u); const element = document.createElement(heading?.[1].length === 2 ? "h2" : heading || numbered ? "h3" : "p"); if (bullet) element.className = "report-bullet"; appendInlineMarkdown(element, heading?.[2] || numbered?.[1] || bullet?.[1] || quote?.[1] || line); $("report").append(element); } }
+		function renderSearchPlan(coreConcepts, expansionTerms) { $("planTerms").replaceChildren(); for (const [terms,className] of [[coreConcepts,"plan-term"],[expansionTerms,"plan-term expansion"]]) { for (const term of terms) { const chip = document.createElement("span"); chip.className = className; chip.textContent = term; $("planTerms").append(chip); } } $("searchPlan").hidden = false; $("runStatus").textContent = "关键词已提取，正在检索 CCF A/B/C 来源"; }
+		function renderPapers(papers, sourceStatus = {}, policy) {
+			currentPapers = papers; $("resultCount").textContent = `${papers.length} / ${targetCount}`; $("excludedCount").textContent = policy?.excludedCount ?? 0; $("domain").textContent = policy?.domain || "—"; $("results").replaceChildren();
+			$("resultNote").textContent = `${sourceStatus.googleScholar || sourceStatus.local || "检索完成"} · 按发表时间排序 · CCF A/B/C`;
+			if (!papers.length) { empty($("results"), "没有通过 CCF 门禁的结果", "可以调整研究关键词；系统不会用未收录来源补足数量。"); return; }
+			papers.forEach((paper, index) => {
+				const article = document.createElement("article"); article.className = "paper"; const top = document.createElement("div"); top.className = "paper-top";
+				const number = document.createElement("span"); number.className = "paper-index"; number.textContent = String(index + 1).padStart(2, "0"); const main = document.createElement("div"); main.className = "paper-main";
+				const title = document.createElement("h3"); title.className = "paper-title"; title.textContent = paper.title; const meta = document.createElement("div"); meta.className = "paper-meta";
+				const rank = document.createElement("span"); rank.className = "rank"; rank.textContent = `CCF ${paper.ccf?.rank || "?"}`; const venue = document.createElement("span"); venue.className = "venue-name"; venue.textContent = paper.venue || "来源待核验"; meta.append(rank, venue, document.createTextNode(`${paper.publishedAt || "日期未知"} · ${paper.authors.join(", ") || "作者未知"}`));
+				const abstract = document.createElement("p"); abstract.className = "abstract"; const label = document.createElement("span"); label.className = "abstract-label"; label.textContent = paper.sourceType === "google-scholar" ? "中文摘要归纳：" : "演示摘要："; const summary = document.createElement("span"); summary.id = `summary-${paper.id}`; summary.textContent = paper.sourceType === "google-scholar" ? paper.summaryZh || "正在基于 Scholar 片段生成中文归纳…" : paper.abstract || "当前结果没有可用摘要。"; abstract.append(label,summary);
+				let evidence; if (paper.sourceType === "google-scholar" && paper.abstract) { evidence = document.createElement("details"); evidence.className = "evidence"; const evidenceTitle = document.createElement("summary"); evidenceTitle.textContent = "查看 Scholar 原始片段"; const evidenceText = document.createElement("p"); evidenceText.textContent = paper.abstract; evidence.append(evidenceTitle,evidenceText); }
+				const actions = document.createElement("div"); actions.className = "actions"; if (paper.sourceUrl) { const link = document.createElement("a"); link.href = paper.sourceUrl; link.target = "_blank"; link.rel = "noreferrer"; link.textContent = "查看原文 ↗"; actions.append(link); }
+				for (const [action,text] of [["save","收藏"],["skip","跳过"]]) { const button = document.createElement("button"); button.type = "button"; button.textContent = text; button.onclick = async () => { await request("/api/feedback", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({paperId:paper.id,action}) }); button.textContent = "已记录"; button.disabled = true; await refreshMemory(); }; actions.append(button); }
+				main.append(title,meta,abstract); if (evidence) main.append(evidence); main.append(actions); top.append(number,main); article.append(top); $("results").append(article);
+			});
+		}
+		function applyPaperSummaries(summaries) { const byId = new Map(summaries.map((item) => [item.paperId,item])); currentPapers = currentPapers.map((paper) => { const item = byId.get(paper.id); if (!item) return paper; const node = document.getElementById(`summary-${paper.id}`); if (node) node.textContent = `${item.summaryZh}（依据${item.evidence === "scholar-snippet" ? " Scholar 检索片段" : item.evidence === "abstract" ? "摘要" : item.evidence === "metadata" ? "元数据" : "演示数据"}）`; return {...paper,summaryZh:item.summaryZh,summaryEvidence:item.evidence}; }); }
+		function finalizePaperSummaries() { for (const paper of currentPapers) { if (paper.sourceType !== "google-scholar" || paper.summaryZh) continue; const node = document.getElementById(`summary-${paper.id}`); if (node) node.textContent = "本次未生成中文归纳，请展开查看原始片段或参考右侧研究报告。"; } }
+		function renderTrace(trace) {
+			$("runDetails").hidden = false; $("traceId").textContent = `run_id ${trace.runId}`; $("traceGrid").replaceChildren();
+			const totalCost = trace.cost.totalUsd === null ? `$${trace.cost.modelUsd.toFixed(4)} + SerpApi` : `$${trace.cost.totalUsd.toFixed(4)}`;
+			for (const [value,label] of [[`${trace.durationMs} ms`,"总耗时"],[trace.tokens.total.toLocaleString(),"Token"],[`${trace.calls.model} / ${trace.calls.mcp} / ${trace.calls.scholar}`,"模型 / Tool / Scholar"],[`${trace.memory.recalledItems} / ${trace.memory.savedItems}`,"记忆召回 / 写入"],[totalCost,trace.cost.totalUsd === null ? "已知成本 / 外部单价未配置" : "单次估算成本"]]) { const item = document.createElement("div"); item.className = "trace-stat"; const strong = document.createElement("strong"); strong.textContent = value; const span = document.createElement("span"); span.textContent = label; item.append(strong,span); $("traceGrid").append(item); }
+			$("spans").replaceChildren(); for (const item of trace.spans) { const row = document.createElement("div"); row.className = "span-row"; const name = document.createElement("strong"); name.textContent = item.name; const duration = document.createElement("span"); duration.textContent = `${item.durationMs ?? 0} ms`; const status = document.createElement("span"); status.textContent = item.status || "—"; row.append(name,duration,status); $("spans").append(row); }
+		}
+		function escapeHtml(value) { return String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;"); }
+		function exportWord() { const papers = currentPapers.map((paper,index) => `<section><h2>${index + 1}. ${escapeHtml(paper.title)}</h2><p>${escapeHtml(`CCF ${paper.ccf?.rank || "?"} · ${paper.venue || "来源待核验"} · ${paper.publishedAt || "日期未知"}`)}</p><p>${escapeHtml(paper.summaryZh || paper.abstract || "摘要片段不可用")}</p>${paper.sourceUrl ? `<p><a href="${escapeHtml(paper.sourceUrl)}">查看原文</a></p>` : ""}</section>`).join(""); const html = `<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:Arial,'Microsoft YaHei',sans-serif;line-height:1.65;color:#172033;margin:36px}h1{font-size:24px}h2{font-size:16px;margin-top:24px;color:#19369b}p{font-size:11pt}a{color:#2446d8}</style></head><body><h1>PaperPulse 研究报告</h1><p><strong>研究问题：</strong>${escapeHtml(currentQuery)}</p><h1>论文结果</h1>${papers}<h1>Agent 归纳</h1>${$("report").innerHTML}</body></html>`; const url = URL.createObjectURL(new Blob(["\ufeff",html],{type:"application/msword"})); const link = document.createElement("a"); link.href = url; link.download = `PaperPulse-${new Date().toISOString().slice(0,10)}.doc`; link.click(); URL.revokeObjectURL(url); }
+		async function boot() { try { const data = await request("/api/status"); liveSearch = data.sources.googleScholar; $("dot").classList.add("on"); $("connection").textContent = `MCP 已连接 · ${data.tools.length} tools`; $("policyText").textContent = `${data.ccfPolicy.version} · ${data.ccfPolicy.venues} 条会议/期刊记录 · A/B/C 入选`; $("runStatus").textContent = liveSearch ? "Google Scholar 与 Kimi K3 已就绪" : "未配置 SerpApi，当前使用离线演示"; await refreshMemory(); } catch (error) { $("connection").textContent = error.message; } }
+		document.querySelectorAll("[data-query]").forEach((button) => button.addEventListener("click", () => { $("query").value = button.dataset.query; }));
+		$("query").addEventListener("keydown", (event) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") $("research").requestSubmit(); });
+		$("copy").addEventListener("click", async () => { await navigator.clipboard.writeText($("report").textContent.trim()); $("copy").textContent = "已复制"; setTimeout(() => { $("copy").textContent = "复制"; }, 1200); });
+		$("word").addEventListener("click", exportWord);
+			$("pdf").addEventListener("click", () => window.print());
+			$("clearMemory").addEventListener("click", async () => { if (!window.confirm("确定清空全部研究记忆和论文反馈吗？")) return; await request("/api/memory", { method:"DELETE", headers:{"Content-Type":"application/json"}, body:JSON.stringify({clearAll:true}) }); await refreshMemory(); });
+		$("research").addEventListener("submit", async (event) => {
+			event.preventDefault(); if (running) return; running = true; currentQuery = $("query").value.trim(); currentPapers = []; $("word").disabled = true; $("pdf").disabled = true; $("search").disabled = true; $("search").textContent = "运行中…"; $("searchPlan").hidden = true; $("runDetails").hidden = true; $("runStatus").textContent = "Kimi 正在提取英文检索词"; reportText = ""; $("report").textContent = ""; empty($("results"), "正在规划检索", "Kimi 会先把自然语言需求拆成核心概念和同义扩展词。");
+				try { const response = await fetch("/api/chat", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ query:currentQuery, limit:targetCount, sources:liveSearch ? ["google-scholar"] : ["demo"] }) }); if (!response.ok || !response.body) throw new Error(await response.text() || "Agent 启动失败"); const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ""; while (true) { const {value,done} = await reader.read(); buffer += decoder.decode(value || new Uint8Array(), {stream:!done}); const lines = buffer.split("\n"); buffer = lines.pop() || ""; for (const line of lines) { if (!line.trim()) continue; const item = JSON.parse(line); if (item.type === "status") $("runStatus").textContent = item.text; if (item.type === "memory-recall") $("memoryCount").textContent = `${item.total} 条 · 本次召回 ${item.recalled}`; if (item.type === "search-plan") renderSearchPlan(item.coreConcepts,item.expansionTerms); if (item.type === "papers") renderPapers(item.papers,item.sourceStatus,item.policy); if (item.type === "paper-summaries") applyPaperSummaries(item.summaries); if (item.type === "text") { reportText += item.text; $("report").textContent = reportText; } if (item.type === "trace") renderTrace(item.trace); if (item.type === "error") throw new Error(item.text); } if (done) break; } finalizePaperSummaries(); $("runStatus").textContent = "检索与归纳完成"; if (reportText.trim()) renderReport(); else empty($("report"), "没有生成归纳", "当前没有可归纳的 Scholar 摘要片段。"); $("word").disabled = !currentPapers.length && !reportText.trim(); $("pdf").disabled = $("word").disabled; await refreshMemory(); }
+			catch (error) { $("runStatus").textContent = error.message; if (!$("report").textContent.trim()) empty($("report"), "运行失败", error.message); }
+			finally { running = false; $("search").disabled = false; $("search").textContent = "开始研究"; }
+		});
+		boot();
+	</script>
+</body>
+</html>
