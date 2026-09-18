@@ -1,6 +1,6 @@
-# PaperPulse · Pi SDK × MCP × CCF RAG
+# PaperPulse · Pi SDK × MCP × RAG
 
-PaperPulse 是一个面向计算机领域的论文研究 Agent。用户输入自然语言问题后，Kimi 负责生成检索计划，MCP Server 搜索 Google Scholar，本地 SQLite 中的 CCF 2026 目录负责确定性来源过滤，最后由 Agent 归纳检索片段中的方法、结论与研究趋势。
+PaperPulse 是一个面向计算机领域的论文研究 Agent。用户输入自然语言问题后，大语言模型负责生成检索计划，MCP Server 搜索 Google Scholar，本地 SQLite 中的 CCF 2026 目录负责确定性来源过滤，最后由 Agent 归纳检索片段中的方法、结论与研究趋势。
 
 这个项目用于验证六项能力：Pi SDK 会话编排、MCP 工具协议、SQLite 结构化 RAG、可复用 Prompt/Skill、长期研究记忆，以及带成本和 Trace 的 Eval 闭环。
 
