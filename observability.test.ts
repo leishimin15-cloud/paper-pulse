@@ -28,6 +28,7 @@ test("records a run with model usage, cost, API calls, and spans", async () => {
 		});
 		trace.recordSearch({
 			papers: [],
+			contexts: [],
 			sourceStatus: {},
 			policy: {
 				version: "CCF-2026-7",
@@ -36,7 +37,16 @@ test("records a run with model usage, cost, API calls, and spans", async () => {
 				candidateCount: 12,
 				excludedCount: 4,
 				searchQuery: "agent memory",
-				telemetry: { scholarApiCalls: 2, scholarDurationMs: 300, memorySignals: 2, memoryReranked: 1 },
+				telemetry: {
+					scholarApiCalls: 2,
+					scholarDurationMs: 300,
+					embeddingModel: "test-embedding",
+					embeddedChunks: 5,
+					retrievedChunks: 3,
+					vectorDurationMs: 40,
+					memorySignals: 2,
+					memoryReranked: 1,
+				},
 			},
 		});
 		trace.finishSpan(spanId, "ok");
@@ -48,6 +58,8 @@ test("records a run with model usage, cost, API calls, and spans", async () => {
 		assert.equal(summary.cost.totalUsd, 0.04);
 		assert.equal(summary.memory.recalledItems, 3);
 		assert.equal(summary.memory.savedItems, 1);
+		assert.equal(summary.retrieval.retrievedChunks, 3);
+		assert.equal(summary.retrieval.embeddingModel, "test-embedding");
 		assert.equal(summary.spans[0]?.status, "ok");
 		assert.equal((await readRecentRuns(tracePath, 1))[0]?.runId, summary.runId);
 	} finally {

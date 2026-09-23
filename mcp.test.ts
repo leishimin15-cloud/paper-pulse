@@ -37,7 +37,11 @@ test("connects Pi bridge to the MCP server and calls paper tools", async () => {
 			sources: ["demo"],
 		});
 		assert.ok(result.papers.length > 0);
-		assert.match(result.sourceStatus.local, /^[1-9]\d* 篇$/u);
+		assert.match(result.sourceStatus.local, /^[1-9]\d* 篇进入归纳上下文$/u);
+		assert.ok(result.contexts.length > 0);
+		assert.match(result.policy.telemetry.embeddingModel, /^transformers-js:/u);
+		assert.match(result.sourceStatus.vector, /召回 \d+ 个文献块/u);
+		assert.ok(result.contexts.some((context) => context.score !== 0));
 		assert.equal(result.papers[0]?.ccf?.rank, "A");
 		assert.equal(result.policy.version, "CCF-2026-7");
 		assert.match(result.policy.searchQuery, /"large language model agent"/u);

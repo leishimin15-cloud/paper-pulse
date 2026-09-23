@@ -53,6 +53,19 @@ interface MemoryRow {
 	updated_at: string;
 }
 
+interface RagChunkRow extends PaperRow {
+	chunk_id: string;
+	chunk_content: string;
+	vector_json: string;
+}
+
+export interface RagSearchHit {
+	paper: Paper;
+	chunkId: string;
+	content: string;
+	score: number;
+}
+
 function normalizeIdentifier(value: string | undefined): string | undefined {
 	const normalized = value
 		?.trim()
@@ -205,6 +218,23 @@ export class PaperDatabase {
 				updated_at TEXT NOT NULL,
 				UNIQUE(user_id, memory_type, content)
 			);
+			CREATE TABLE IF NOT EXISTS paper_chunks (
+				id TEXT PRIMARY KEY,
+				paper_id TEXT NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+				chunk_index INTEGER NOT NULL,
+				content TEXT NOT NULL,
+				content_hash TEXT NOT NULL,
+				created_at TEXT NOT NULL,
+				UNIQUE(paper_id, chunk_index)
+			);
+			CREATE TABLE IF NOT EXISTS chunk_embeddings (
+				chunk_id TEXT NOT NULL REFERENCES paper_chunks(id) ON DELETE CASCADE,
+				provider_id TEXT NOT NULL,
+				dimensions INTEGER NOT NULL,
+				vector_json TEXT NOT NULL,
+				updated_at TEXT NOT NULL,
+				PRIMARY KEY(chunk_id, provider_id)
+			);
 			CREATE INDEX IF NOT EXISTS memory_items_user_updated
 			ON memory_items(user_id, updated_at DESC);
 		`);
@@ -225,6 +255,25 @@ export class PaperDatabase {
 		}>;
 		if (!feedbackColumns.some((column) => column.name === "user_id"))
 			this.db.exec("ALTER TABLE feedback ADD COLUMN user_id TEXT NOT NULL DEFAULT 'local-user'");
+		const chunkColumns = this.db.prepare("PRAGMA table_info(paper_chunks)").all() as unknown as Array<{
+			name: string;
+		}>;
+		if (!chunkColumns.some((column) => column.name === "chunk_index")) {
+			this.db.exec("ALTER TABLE paper_chunks ADD COLUMN chunk_index INTEGER");
+			this.db.exec("UPDATE paper_chunks SET chunk_index = rowid WHERE chunk_index IS NULL");
+		}
+		if (!chunkColumns.some((column) => column.name === "content_hash")) {
+			this.db.exec("ALTER TABLE paper_chunks ADD COLUMN content_hash TEXT");
+			this.db.exec("UPDATE paper_chunks SET content_hash = id WHERE content_hash IS NULL");
+		}
+		if (!chunkColumns.some((column) => column.name === "created_at")) {
+			this.db.exec("ALTER TABLE paper_chunks ADD COLUMN created_at TEXT");
+			this.db.exec("UPDATE paper_chunks SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL");
+		}
+		this.db.exec(`
+			CREATE UNIQUE INDEX IF NOT EXISTS paper_chunks_paper_index ON paper_chunks(paper_id, chunk_index);
+			CREATE INDEX IF NOT EXISTS paper_chunks_paper ON paper_chunks(paper_id, chunk_index);
+		`);
 		this.importCcfDirectory();
 	}
 
@@ -507,6 +556,109 @@ export class PaperDatabase {
 		return rows.map(toPaper);
 	}
 
+	indexPaperChunks(
+		paperId: string,
+		chunks: Array<{ index: number; content: string }>,
+	): Array<{
+		id: string;
+		content: string;
+		contentHash: string;
+	}> {
+		if (!this.getPaper(paperId)) throw new Error("论文不存在");
+		const now = new Date().toISOString();
+		const indexed = chunks.map((chunk) => {
+			const contentHash = createHash("sha256").update(chunk.content).digest("hex");
+			const id = createHash("sha256").update(`${paperId}:${chunk.index}`).digest("hex");
+			const existing = this.db.prepare("SELECT content_hash FROM paper_chunks WHERE id = ?").get(id) as
+				| { content_hash: string }
+				| undefined;
+			this.db
+				.prepare(`
+					INSERT INTO paper_chunks(id, paper_id, chunk_index, content, content_hash, created_at)
+					VALUES (?, ?, ?, ?, ?, ?)
+					ON CONFLICT(paper_id, chunk_index) DO UPDATE SET
+						content = excluded.content,
+						content_hash = excluded.content_hash, created_at = excluded.created_at
+				`)
+				.run(id, paperId, chunk.index, chunk.content, contentHash, now);
+			if (existing && existing.content_hash !== contentHash)
+				this.db.prepare("DELETE FROM chunk_embeddings WHERE chunk_id = ?").run(id);
+			return { id, content: chunk.content, contentHash };
+		});
+		const keep = indexed.map((chunk) => chunk.id);
+		if (keep.length) {
+			const placeholders = keep.map(() => "?").join(", ");
+			this.db
+				.prepare(`DELETE FROM paper_chunks WHERE paper_id = ? AND id NOT IN (${placeholders})`)
+				.run(paperId, ...keep);
+		}
+		return indexed;
+	}
+
+	getChunkEmbedding(chunkId: string, providerId: string): number[] | undefined {
+		const row = this.db
+			.prepare("SELECT vector_json FROM chunk_embeddings WHERE chunk_id = ? AND provider_id = ?")
+			.get(chunkId, providerId) as { vector_json: string } | undefined;
+		return row ? (JSON.parse(row.vector_json) as number[]) : undefined;
+	}
+
+	saveChunkEmbedding(chunkId: string, providerId: string, vector: number[]): void {
+		if (!vector.length || !vector.every(Number.isFinite)) throw new Error("文献块向量无效");
+		this.db
+			.prepare(`
+				INSERT INTO chunk_embeddings(chunk_id, provider_id, dimensions, vector_json, updated_at)
+				VALUES (?, ?, ?, ?, ?)
+				ON CONFLICT(chunk_id, provider_id) DO UPDATE SET
+					dimensions = excluded.dimensions,
+					vector_json = excluded.vector_json,
+					updated_at = excluded.updated_at
+			`)
+			.run(chunkId, providerId, vector.length, JSON.stringify(vector), new Date().toISOString());
+	}
+
+	searchChunkEmbeddings(
+		queryVector: number[],
+		providerId: string,
+		limit = 30,
+		sources?: SourceType[],
+	): RagSearchHit[] {
+		if (sources?.length === 0) return [];
+		const sourcePlaceholders = sources?.map(() => "?").join(", ");
+		const rows = this.db
+			.prepare(`
+				SELECT p.*, s.source_type, s.source_record_id, s.source_url, s.access_level,
+				       c.id AS chunk_id, c.content AS chunk_content, e.vector_json
+				FROM chunk_embeddings e
+				JOIN paper_chunks c ON c.id = e.chunk_id
+				JOIN papers p ON p.id = c.paper_id
+				JOIN paper_sources s ON s.id = (
+					SELECT id FROM paper_sources WHERE paper_id = p.id
+					ORDER BY CASE source_type WHEN 'google-scholar' THEN 0 ELSE 1 END LIMIT 1
+				)
+				WHERE e.provider_id = ?
+				${
+					sources?.length
+						? `AND EXISTS (
+							SELECT 1 FROM paper_sources selected_source
+							WHERE selected_source.paper_id = p.id
+							AND selected_source.source_type IN (${sourcePlaceholders})
+						)`
+						: ""
+				}
+			`)
+			.all(providerId, ...(sources ?? [])) as unknown as RagChunkRow[];
+		return rows
+			.map((row) => {
+				const vector = JSON.parse(row.vector_json) as number[];
+				const dimensions = Math.min(queryVector.length, vector.length);
+				let score = 0;
+				for (let index = 0; index < dimensions; index++) score += (queryVector[index] ?? 0) * (vector[index] ?? 0);
+				return { paper: toPaper(row), chunkId: row.chunk_id, content: row.chunk_content, score };
+			})
+			.sort((left, right) => right.score - left.score)
+			.slice(0, Math.max(1, Math.min(limit, 100)));
+	}
+
 	saveFeedback(paperId: string, action: "save" | "skip" | "read" | "like" | "dislike", userId = "local-user"): void {
 		if (!this.getPaper(paperId)) throw new Error("论文不存在");
 		this.db
@@ -660,11 +812,20 @@ export class PaperDatabase {
 		);
 	}
 
-	stats(): { papers: number; feedback: number; memories: number; ccfVenues: number } {
+	stats(): {
+		papers: number;
+		chunks: number;
+		embeddings: number;
+		feedback: number;
+		memories: number;
+		ccfVenues: number;
+	} {
 		const count = (table: string) =>
 			(this.db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as { count: number }).count;
 		return {
 			papers: count("papers"),
+			chunks: count("paper_chunks"),
+			embeddings: count("chunk_embeddings"),
 			feedback: count("feedback"),
 			memories: count("memory_items"),
 			ccfVenues: count("ccf_venues"),

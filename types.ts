@@ -85,6 +85,12 @@ export interface SearchOptions {
 
 export interface SearchResult {
 	papers: Paper[];
+	contexts: Array<{
+		paperId: string;
+		chunkId: string;
+		content: string;
+		score: number;
+	}>;
 	sourceStatus: Record<string, string>;
 	policy: {
 		version: string;
@@ -96,6 +102,10 @@ export interface SearchResult {
 		telemetry: {
 			scholarApiCalls: number;
 			scholarDurationMs: number;
+			embeddingModel: string;
+			embeddedChunks: number;
+			retrievedChunks: number;
+			vectorDurationMs: number;
 			memorySignals: number;
 			memoryReranked: number;
 		};

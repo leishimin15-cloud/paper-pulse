@@ -14,6 +14,14 @@ export class PaperMcpClient {
 		const client = new Client({ name: "paper-pulse-pi-bridge", version: "0.1.0" });
 		const env: Record<string, string> = { ...getDefaultEnvironment(), PAPER_PULSE_DB: databasePath };
 		if (process.env.SERPAPI_API_KEY) env.SERPAPI_API_KEY = process.env.SERPAPI_API_KEY;
+		for (const name of [
+			"PAPER_PULSE_EMBEDDING_MODEL",
+			"PAPER_PULSE_MODEL_CACHE",
+			"PAPER_PULSE_MODEL_HOST",
+		] as const) {
+			const value = process.env[name];
+			if (value) env[name] = value;
+		}
 		const transport = new StdioClientTransport({
 			command: process.execPath,
 			args: ["--import", "tsx", `${root}/mcp-server.ts`],

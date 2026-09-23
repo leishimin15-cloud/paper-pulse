@@ -53,6 +53,7 @@ export interface RunTrace {
 		serpApiUnitCostUsd: number | null;
 	};
 	results: { candidates: number; accepted: number; excluded: number };
+	retrieval: { embeddingModel?: string; embeddedChunks: number; retrievedChunks: number; durationMs: number };
 	memory: {
 		recallCalls: number;
 		writeCalls: number;
@@ -88,6 +89,7 @@ export class RunTraceRecorder {
 	private readonly calls = { model: 0, mcp: 0, scholar: 0 };
 	private readonly tokens = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
 	private readonly results = { candidates: 0, accepted: 0, excluded: 0 };
+	private readonly retrieval: RunTrace["retrieval"] = { embeddedChunks: 0, retrievedChunks: 0, durationMs: 0 };
 	private readonly memory = {
 		recallCalls: 0,
 		writeCalls: 0,
@@ -157,6 +159,10 @@ export class RunTraceRecorder {
 		this.results.candidates = result.policy.candidateCount;
 		this.results.accepted = result.papers.length;
 		this.results.excluded = result.policy.excludedCount;
+		this.retrieval.embeddingModel = result.policy.telemetry.embeddingModel;
+		this.retrieval.embeddedChunks = result.policy.telemetry.embeddedChunks;
+		this.retrieval.retrievedChunks = result.policy.telemetry.retrievedChunks;
+		this.retrieval.durationMs = result.policy.telemetry.vectorDurationMs;
 	}
 
 	recordMemoryRecall(recalledItems: number): void {
@@ -202,6 +208,7 @@ export class RunTraceRecorder {
 				serpApiUnitCostUsd: this.serpApiUnitCostUsd,
 			},
 			results: { ...this.results },
+			retrieval: { ...this.retrieval },
 			memory: { ...this.memory },
 			spans: this.spans,
 		};

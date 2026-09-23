@@ -40,9 +40,9 @@ function createPaperServer(): McpServer {
 	server.registerTool(
 		"search_ccf_papers",
 		{
-			title: "Search CCF Papers",
+			title: "Vector Search CCF Papers",
 			description:
-				"Search recent computer-science papers and keep only sources matched against the local CCF 2026 A/B/C directory in SQLite.",
+				"Search recent computer-science papers, chunk and embed abstracts, retrieve relevant context by vector similarity, then keep only sources matched against the local CCF 2026 A/B/C directory in SQLite.",
 			inputSchema: z.object({
 				query: z.string().min(1).max(500),
 				coreConcepts: z.array(z.string().min(2)).max(4).default([]),
